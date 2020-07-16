@@ -1,3 +1,9 @@
+/****************************************************************************************/
+/* 	CS023 Course Project: Bloomtree GPU implementation using CUDA library				*/
+/* 	CUDA implementation of all relevant functions										*/
+/* 																						*/
+/****************************************************************************************/
+
 #include<bits/stdc++.h>
 #include<cuda.h>
 using namespace std;
@@ -12,6 +18,7 @@ using namespace std;
 __managed__ int num_vertices;
 __managed__ uint8_t m_num_hashes;
 __managed__ uint64_t filter_size;
+__managed__ bool *m_bits;
 
 /*
 Required variables for bloomtree:
@@ -21,38 +28,46 @@ m_bits //our bloom filter -> in GPU => allocate using cudaHostAlloc in main? or 
 filter_size //size of our bloom filter
 */
 
+// Helper function to calculate two hash functions which is later used to calculate the Nth hash function
 __device__ void Mhash(const long data, uint64_t filter_size, uint64_t & hash1, uint64_t & hash2) 
 {
-	hash1 = data % filter_size;
-	hash2 = (data*data) % filter_size;
+	hash1 = data;
+	hash2 = (data*data);
 }
 
+// Helper function to calculate Nth hash function
 __device__ inline uint64_t NthHash(uint8_t n, uint64_t hashA, uint64_t hashB, uint64_t filter_size) 
 {
 	return (hashA + n * hashB) % filter_size;
 }
 
+
+// To get index of leftChild of a given node
 __device__ int LeftChild(int node) 
 {
 	return (((node + 1) << 1) - 1);
 }
 
+// To get index of rightChild of a given node
 __device__ int RightChild(int node) 
 {
 	return ((node + 1) << 1);
 }
 
+// To get index of the sibling of a given node
 __device__ int Sibling(int node) 
 {
 	return (((node + 1) ^ 1) - 1);
 }
 
+// To get index of parent of a given node
 __device__ int Parent(int node) 
 {
 	return (((node + 1) >> 1) - 1); 
 }
 
-__device__ void SetBloom(bool *m_bits, long data)
+// Utility function to set bloomfilter as per the given data
+__device__ void SetBloom(long data)
 {
 	uint64_t hash_values[2];
 	Mhash(data, filter_size, hash_values[0], hash_values[1]);
@@ -62,7 +77,8 @@ __device__ void SetBloom(bool *m_bits, long data)
 	}
 }
 
-__device__ bool CheckBloom(bool *m_bits, long data)
+// Utility function to check if bloomfilter as per the given data is set or not
+__device__ bool CheckBloom(long data)
 {
 	uint64_t hash_values[2];
 	Mhash(data, filter_size, hash_values[0], hash_values[1]);
@@ -76,7 +92,8 @@ __device__ bool CheckBloom(bool *m_bits, long data)
 	return true;
 }
 
-__device__ void Bset(bool *m_bits, l src, l dest, bool path[], l dir_change_idx) 
+// Utility function to set all bits corresponding to a given path in the bloom tree
+__device__ void Bset(l src, l dest, bool path[], l dir_change_idx) 
 {
 	l cur = Parent(src + num_vertices - 1);
 	l i = 1;
@@ -85,12 +102,12 @@ __device__ void Bset(bool *m_bits, l src, l dest, bool path[], l dir_change_idx)
     {
         if (dir && i != dir_change_idx) 
         {
-			SetBloom(m_bits, ((long)cur * num_vertices + src) << 1);
+			SetBloom(((long)cur * num_vertices + src) << 1);
 			cur = Parent(cur);
 		}
         else if (dir)
         {
-			SetBloom(m_bits, (((long)cur * num_vertices + src) << 1) + 1);
+			SetBloom((((long)cur * num_vertices + src) << 1) + 1);
 			dir = false;
 			if (path[i] == 0) cur = LeftChild(cur);
 			else cur = RightChild(cur);
@@ -99,12 +116,12 @@ __device__ void Bset(bool *m_bits, l src, l dest, bool path[], l dir_change_idx)
         {
             if (path[i] == 0) 
             {
-				SetBloom(m_bits, ((long)cur * num_vertices + src) << 1);
+				SetBloom(((long)cur * num_vertices + src) << 1);
 				cur = LeftChild(cur);
 			}
             else 
             {
-				SetBloom(m_bits, (((long)cur * num_vertices + src) << 1) + 1);
+				SetBloom((((long)cur * num_vertices + src) << 1) + 1);
 				cur = RightChild(cur);
 			}
 		}
@@ -112,6 +129,7 @@ __device__ void Bset(bool *m_bits, l src, l dest, bool path[], l dir_change_idx)
 	}
 }
 
+// Function to copy reversed array in parallel
 __device__ void CopyReverseArray(int len, bool ret[], bool path[])
 {
 	l id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -121,6 +139,7 @@ __device__ void CopyReverseArray(int len, bool ret[], bool path[])
 	}
 }
 
+// Function to get path of a node in bloom tree from the root
 __device__ int GetVertexPath(l node, bool path[]) 
 {
 	node = node + num_vertices - 1;
@@ -149,7 +168,7 @@ __device__ int GetVertexPath(l node, bool path[])
 	return len;
 }
 
-
+// Function to get path of a node from another node in the bloom tree
 __device__ int GetEdgePath(l u, l v, bool path[], l& dir_change_idx) 
 {
 	bool path_u[MAX_HEIGHT], path_v[MAX_HEIGHT];
@@ -170,9 +189,10 @@ __device__ int GetEdgePath(l u, l v, bool path[], l& dir_change_idx)
 		idx++;
 	}
 	return idx;
-	// Both the for loops have dependencies, hence can't parallelize
+	// Both the for loops have dependencies, hence can't parallelize these loops
 }
 
+// Function to reverse an array parallely
 __device__ void ReverseArray(int len, bool path[])
 {
 	l id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -185,12 +205,15 @@ __device__ void ReverseArray(int len, bool path[])
 }
 
 //use one thread to do this:
-__global__ void AddEdge(bool *m_bits, l u, l v) 
+__global__ void AddEdgeBloomTree(l u, l v) 
 {
+	unsigned id = blockIdx.x * blockDim.x + threadIdx.x;
+	if(id!=0)
+		return;
 	bool path[2*MAX_HEIGHT];
 	int dir_change_idx;
 	l len = GetEdgePath(u, v, path, dir_change_idx);
-	Bset(m_bits, u, v, path, dir_change_idx);
+	Bset(u, v, path, dir_change_idx);
 	for (int i = 0; i < len/2; i++) 
 	{
 		bool temp = path[len-i-1];
@@ -199,10 +222,10 @@ __global__ void AddEdge(bool *m_bits, l u, l v)
 	}
 	// ReverseArray<<<1,len/2>>>(len, path);
 	dir_change_idx = len - dir_change_idx;
-	Bset(m_bits, v, u, path, dir_change_idx);
+	Bset(v, u, path, dir_change_idx);
 }
 
-__device__ bool IsEdge(bool *m_bits, l u, l v) 
+__device__ bool IsEdge(l u, l v) 
 {
 	if(u==v)
 		return false;
@@ -215,7 +238,7 @@ __device__ bool IsEdge(bool *m_bits, l u, l v)
     {
         if (dir && i != dir_change_idx) 
         {
-			if (CheckBloom(m_bits, ((long)cur * num_vertices + u) << 1) == 0)
+			if (CheckBloom(((long)cur * num_vertices + u) << 1) == 0)
 			{
 				return false;
 			} 
@@ -223,7 +246,7 @@ __device__ bool IsEdge(bool *m_bits, l u, l v)
 		}
         else if (dir)
         {
-			if (CheckBloom(m_bits, (((long)cur * num_vertices + u) << 1) + 1) == 0)
+			if (CheckBloom((((long)cur * num_vertices + u) << 1) + 1) == 0)
 			{
 				return false;
 			} 
@@ -235,7 +258,7 @@ __device__ bool IsEdge(bool *m_bits, l u, l v)
         {
             if (path[i] == 0) 
             {
-				if (CheckBloom(m_bits, ((long)cur * num_vertices + u) << 1) == 0)
+				if (CheckBloom(((long)cur * num_vertices + u) << 1) == 0)
 				{
 					return false;
 				} 
@@ -243,7 +266,7 @@ __device__ bool IsEdge(bool *m_bits, l u, l v)
 			}
             else 
             {
-				if (CheckBloom(m_bits, (((long)cur * num_vertices + u) << 1) + 1) == 0)
+				if (CheckBloom((((long)cur * num_vertices + u) << 1) + 1) == 0)
 				{
 					return false;
 				} 
@@ -255,11 +278,44 @@ __device__ bool IsEdge(bool *m_bits, l u, l v)
 	return true;
 }
 
-__global__ void Neighbours(bool *m_bits, int u, bool *neigh)  //length of neigh is num_vertices.
+// Function to get neighbours of a specified node in the original graph
+__global__ void Neighbours(int u, bool *neigh)  //length of neigh is num_vertices.
 {
 	unsigned id = blockIdx.x * blockDim.x + threadIdx.x;
 	if(id<num_vertices)
 	{
-		neigh[id] = IsEdge(m_bits, u, id);
+		neigh[id] = IsEdge(u, id);
 	}
+}
+
+// Helper function to initialize all elements to false
+__global__ void InitAllToFalse(bool *array, int size)
+{
+	int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	if(tid < size)
+	{
+		array[tid]=false;
+	}
+}
+
+// Function to initialize the bloomTree
+void InitBloomTree(l numVertices, l filterSize, l numHashes)
+{
+	num_vertices = numVertices;
+	filter_size = filterSize;
+	m_num_hashes = numHashes;
+	cudaMalloc(&m_bits, filterSize * sizeof(bool));
+	InitAllToFalse<<<(filterSize/1024 + 1), 1024>>>(m_bits, filterSize);
+}
+
+// Function to be called from CPU to add an edge
+void AddEdge(int u, int v)
+{
+	AddEdgeBloomTree<<<1,1>>>(u,v);
+}
+
+// Function to be called from CPU to get neighbours of a particular vertex
+void GetNeighbours(int u, bool *neigh)
+{
+	Neighbours<<<(num_vertices/1024 + 1),1024>>>(1, neigh);
 }

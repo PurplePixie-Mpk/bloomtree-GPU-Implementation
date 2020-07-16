@@ -1,5 +1,5 @@
 /****************************************************************************************/
-/* 	CS023 Course Project: Bloomtree in GPU using CUDA library							*/
+/* 	CS023 Course Project: Bloomtree GPU implementation using CUDA library				*/
 /* 	Testing bloomtree implementation using Neighbours function							*/
 /* 																						*/
 /****************************************************************************************/
@@ -12,15 +12,6 @@ using namespace std;
 
 #define rep(i, a, b) for (l i = a; i < b; ++i)
 
-__global__ void InitAllToFalse(bool *array, int size)
-{
-	int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	if(tid < size)
-	{
-		array[tid]=false;
-	}
-}
-
 int main(int argc,char** argv)
 {
 	if (argc != 5) 
@@ -30,14 +21,13 @@ int main(int argc,char** argv)
 	}
 
 	// Parsing command line arguments
-	num_vertices = atoi(argv[2]);
-	filter_size = atoi(argv[3]);
-	m_num_hashes = atoi(argv[4]);
+	int numVertices, filterSize, numHashes;
+	numVertices = atoi(argv[2]);
+	filterSize = atoi(argv[3]);
+	numHashes = atoi(argv[4]);
 
 	// Initializing bloom_filter for our bloom tree
-	bool *m_bits;
-	cudaMalloc(&m_bits, filter_size * sizeof(bool));
-	InitAllToFalse<<<(filter_size/1024 + 1), 1024>>>(m_bits, filter_size);
+	InitBloomTree(numVertices, filterSize, numHashes);
 
 	// Reading input and adding edges
 	ifstream fin(argv[1], ios::in);
@@ -46,20 +36,20 @@ int main(int argc,char** argv)
 		l u,v;
 		fin >> u >> v;
 		if (u == v) continue;
-		AddEdge<<<1,1>>>(m_bits,u,v);
+		AddEdge(u,v);
 	}
 	fin.close();
 
 	// Testing Neighbours function
 	bool *neigh, *neighCpu;
-	cudaMalloc(&neigh, num_vertices * sizeof(bool));
-	InitAllToFalse<<<(num_vertices/1024 + 1), 1024>>>(neigh, num_vertices);
-	Neighbours<<<(num_vertices/1024 + 1),1024>>>(m_bits, 1, neigh);
+	cudaMalloc(&neigh, numVertices * sizeof(bool));
+	InitAllToFalse<<<(numVertices/1024 + 1), 1024>>>(neigh, numVertices);
+	GetNeighbours(1, neigh);
 
 	// Copying output in GPU back to CPU and displaying the result
-	neighCpu = (bool *)malloc(num_vertices * sizeof(bool));
-	cudaMemcpy(neighCpu, neigh, num_vertices * sizeof(bool), cudaMemcpyDeviceToHost);
-	rep(ii,0,num_vertices) 
+	neighCpu = (bool *)malloc(numVertices * sizeof(bool));
+	cudaMemcpy(neighCpu, neigh, numVertices * sizeof(bool), cudaMemcpyDeviceToHost);
+	rep(ii,0,numVertices) 
 	{
 		cout<<neighCpu[ii]<<' ';
 	}

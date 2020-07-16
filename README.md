@@ -8,14 +8,13 @@ CUDA Implementation of BloomTree - A Space-Efficient Approximate Representation 
 
 Initialise the bloom filter used for the bloom tree with the size of bloom filter, and number of hash functions
 ```
-bool *m_bits;
-cudaMalloc(&m_bits, filter_size * sizeof(bool));
+InitBloomTree(int numVertices, int filterSize, int numHashes);
 ```
 
-Methods provided by BloomTree class are
+Methods provided by our bloomtree implementation are
 ```
-AddEdge(bool* m_bits, int u, int v)
-Neighbours(bool* m_bits, int u, bool[] neighbours)
+AddEdge(int u, int v)
+GetNeighbours(int u, bool[] neighbours)
 ```
 
 ## Test
