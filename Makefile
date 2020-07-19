@@ -3,7 +3,7 @@ FLAGS=-std=c++11
 all: bfs color scc
 bfs:bfs.cu
 	$(CXX) $^ $(FLAGS) -o $@ 
-color:color.cu
+color:color_greedy.cu
 	$(CXX) $^ $(FLAGS) -o $@ 
 scc:scc.cu
 	$(CXX) $^ $(FLAGS) -o $@ 

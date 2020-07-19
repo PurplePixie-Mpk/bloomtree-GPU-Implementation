@@ -42,31 +42,35 @@ __global__ void Init(int bfs_dist[N]) {
 }*/
 
 void BreadthFirstSearch(int s) {
-	l bfs_dist[N],*device_bfs_dist;
-	cudaMemcpy(device_bfs_dist, bfs_dist, sizeof(int) * N, cudaMemcpyHostToDevice);
+	l bfs_dist[num_vertices],*device_bfs_dist;
+	cudaMalloc(&device_bfs_dist, num_vertices * sizeof(int));
 	int n_blocks = (num_vertices+N_THREADS_PER_BLOCK-1)/N_THREADS_PER_BLOCK;
 	Init<<<n_blocks,N_THREADS_PER_BLOCK>>>(device_bfs_dist);
-	cudaMemcpy(bfs_dist, device_bfs_dist, sizeof(int) * N, cudaMemcpyDeviceToHost);
+	cudaMemcpy(bfs_dist, device_bfs_dist, sizeof(int) * num_vertices, cudaMemcpyDeviceToHost);
 	q.push(s);
 	bfs_dist[s] = 0;
-	//int level = 1;
+	bool *neigh, *adj;
+	cudaMalloc(&neigh, num_vertices * sizeof(bool));
+	adj = (bool *)malloc(num_vertices * sizeof(bool));
 	
 	while(!q.empty()){
 		int u = q.front();
 		q.pop();
-
-		bool adj[num_vertices];
-		GetNeighbours(s,adj);
-		int vert_adj[N],j=0;
+		
+		InitAllToFalse<<<(num_vertices/1024 + 1), 1024>>>(neigh, num_vertices);
+		GetNeighbours(u, neigh);
+		cudaMemcpy(adj, neigh, num_vertices * sizeof(bool), cudaMemcpyDeviceToHost);
+		
+		vector<int> vert_adj;
 		for(int i=0;i<num_vertices;i++)
 		{
 			if(adj[i]==true)
 			{
-				vert_adj[j]=i;
-				j++;
+				vert_adj.push_back(i);
 			}
 		}
-		for (l i = 0; i < j; ++i) {
+
+		for (l i = 0; i < vert_adj.size(); ++i) {
 			if (bfs_dist[vert_adj[i]] == INF){
 				bfs_dist[vert_adj[i]] = bfs_dist[u] + 1;
 				q.push(vert_adj[i]);

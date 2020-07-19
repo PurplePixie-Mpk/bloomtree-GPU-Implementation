@@ -1,7 +1,7 @@
 /****************************************************************************************/
 /* 	CS023 Course Project: Bloomtree GPU implementation using CUDA library				*/
 /* 	Testing bloomtree implementation using Neighbours function							*/
-/* 																						*/
+/* 	Input format: ./test filename num_vertices num_bits num_hash_functions				*/
 /****************************************************************************************/
 
 #include <bits/stdc++.h>

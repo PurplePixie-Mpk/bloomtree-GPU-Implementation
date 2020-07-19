@@ -317,5 +317,5 @@ void AddEdge(int u, int v)
 // Function to be called from CPU to get neighbours of a particular vertex
 void GetNeighbours(int u, bool *neigh)
 {
-	Neighbours<<<(num_vertices/1024 + 1),1024>>>(1, neigh);
+	Neighbours<<<(num_vertices/1024 + 1),1024>>>(u, neigh);
 }
