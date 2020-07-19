@@ -11,17 +11,21 @@ int dfs_num[N], dfs_low[N], dfscounter;
 stack<int> dfs_scc;
 set<int> in_stack;
 
-__global__ void init(int dfs_num[N]){
+__global__ void init(int *dfs_num){
 	int i = blockDim.x*blockIdx.x + blockIdx.x;
 		dfs_num[i]=-1;
 }
 
 void Init(){
-	int n_blocks = (num_vertices+N_THREADS_PER_BLOCK-1)/N_THREADS_PER_BLOCK-1,*d_dfs_num;
-	cudaMalloc(&d_dfs_num, num_vertices * sizeof(int));
-	// cudaMemcpy(d_dfs_num, dfs_num, sizeof(int) * N, cudaMemcpyHostToDevice);
-	init<<<n_blocks,N_THREADS_PER_BLOCK>>>(d_dfs_num);
-	cudaMemcpy(dfs_num, d_dfs_num, sizeof(int) * num_vertices, cudaMemcpyDeviceToHost);
+	// int n_blocks = (num_vertices+N_THREADS_PER_BLOCK-1)/N_THREADS_PER_BLOCK-1,*d_dfs_num;
+	// cudaMalloc(&d_dfs_num, num_vertices * sizeof(int));
+	// // cudaMemcpy(d_dfs_num, dfs_num, sizeof(int) * N, cudaMemcpyHostToDevice);
+	// init<<<n_blocks,N_THREADS_PER_BLOCK>>>(d_dfs_num);
+	// cudaMemcpy(dfs_num, d_dfs_num, sizeof(int) * num_vertices, cudaMemcpyDeviceToHost);
+	for(int i=0;i<num_vertices;i++)
+	{
+		dfs_num[i] = -1;
+	}
 }
 
 void SCC(int u) {
@@ -35,14 +39,10 @@ void SCC(int u) {
 	InitAllToFalse<<<(num_vertices/1024 + 1), 1024>>>(neigh, num_vertices);
 	GetNeighbours(u, neigh);
 	cudaMemcpy(adja, neigh, num_vertices * sizeof(bool), cudaMemcpyDeviceToHost);
-	cout<<"\nu = "<<u<<"\nAdj: ";
-
-	// bool adja[num_vertices];
-	// GetNeighbours(u, adja);
+	
 	vector<int> adj;
 	for(int i=0;i<num_vertices;i++)
 	{
-		cout<<adja[i]<<' ';
 		if(adja[i]==true)
 			adj.push_back(i);
 	}
@@ -101,7 +101,6 @@ int main(int argc, char** argv) {
 	num_sccs = 0;
 	for (int i = 0; i < num_vertices; ++i) {
 		if (dfs_num[i] == WH) {
-			cout<<"hello";
 			SCC(i);
 		}
 	}
