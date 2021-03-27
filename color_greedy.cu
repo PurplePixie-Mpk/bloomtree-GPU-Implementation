@@ -16,8 +16,6 @@ __global__ void assign(bool is_neighbour_colour[N],int color[N])
 	color[tid]=-1;
 }
 
-
-
 __global__ void check(bool is_neighbour_color[N],int color[N],int adj[N])
 {
 	int i = blockDim.x * blockIdx.x + threadIdx.x;;
