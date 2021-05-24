@@ -54,6 +54,7 @@ void BreadthFirstSearch(int s) {
 	adj = (bool *)malloc(num_vertices * sizeof(bool));
 	
 	while(!q.empty()){
+		cout<<"HI";
 		int u = q.front();
 		q.pop();
 		
@@ -66,10 +67,11 @@ void BreadthFirstSearch(int s) {
 		{
 			if(adj[i]==true)
 			{
+				cout<<u<<" "<<i<<"\n";
 				vert_adj.push_back(i);
 			}
 		}
-
+		cout<<"\n";
 		for (l i = 0; i < vert_adj.size(); ++i) {
 			if (bfs_dist[vert_adj[i]] == INF){
 				bfs_dist[vert_adj[i]] = bfs_dist[u] + 1;
