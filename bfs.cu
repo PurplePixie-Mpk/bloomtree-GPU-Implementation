@@ -67,15 +67,10 @@ void BreadthFirstSearch(int s) {
 		{
 			if(adj[i]==true)
 			{
-				cout<<u<<" "<<i<<"\n";
-				vert_adj.push_back(i);
-			}
-		}
-		cout<<"\n";
-		for (l i = 0; i < vert_adj.size(); ++i) {
-			if (bfs_dist[vert_adj[i]] == INF){
-				bfs_dist[vert_adj[i]] = bfs_dist[u] + 1;
-				q.push(vert_adj[i]);
+				if (bfs_dist[i] == INF){
+					bfs_dist[i] = bfs_dist[u] + 1;
+					q.push(i);
+				}
 			}
 		}
 	}
