@@ -4,7 +4,7 @@ using namespace std;
 
 #define l int
 #define DISPLAY_COLORS true
-const l N = INT_MAX;
+const l N = 9;
 #define N_THREADS_PER_BLOCK 1024
 
 int adj_size;
@@ -24,44 +24,48 @@ __global__ void check(bool is_neighbour_color[N],int color[N],int adj[N])
 }
 
 void Colouring(){
-	int *color = new l[num_vertices],*dcolor;
-	bool *is_neighbour_color = new bool[num_vertices],*dneigh;
+	int *color = new l[num_vertices];
+	bool *is_neighbour_color = new bool[num_vertices+1];
 	
 	// Initially, there is no color to any neighbour and to any vertex
-	int n_blocks = (num_vertices+N_THREADS_PER_BLOCK-1)/N_THREADS_PER_BLOCK;
-	cudaMemcpy(dcolor, color, sizeof(int) * N, cudaMemcpyHostToDevice);
-	cudaMemcpy(dneigh, is_neighbour_color, sizeof(int) * N, cudaMemcpyHostToDevice);
-	assign<<<n_blocks,N_THREADS_PER_BLOCK>>>(is_neighbour_color,color);
-	cudaMemcpy(color, dcolor, sizeof(int) * N, cudaMemcpyDeviceToHost);
-	cudaMemcpy(is_neighbour_color, dneigh, sizeof(int) * N, cudaMemcpyDeviceToHost);
+	//int n_blocks = (num_vertices+N_THREADS_PER_BLOCK-1)/N_THREADS_PER_BLOCK;
+
+	
+	for(int v=1;v<=num_vertices;v++)
+	{
+		color[v]=-1;
+		is_neighbour_color[v]=false;
+	}
 	color[0] = 1;
 	int num_colors_used = 1;
 
+	bool *t_adj,*t_gpu_adj;
+	cudaMalloc(&t_adj, num_vertices * sizeof(bool));
+	t_gpu_adj = (bool *)malloc(num_vertices * sizeof(bool));
+	
+	
 	for (int v = 1; v < num_vertices; ++v)
 	{
-		bool t_adj[N];
+		//cout<<v<<"\n";
+		InitAllToFalse<<<(num_vertices/1024 + 1), 1024>>>(t_adj, num_vertices);
 		GetNeighbours(v, t_adj);
-		int adj[N],j=0,*dadj;
+		cudaMemcpy(t_gpu_adj, t_adj, num_vertices * sizeof(bool), cudaMemcpyDeviceToHost);
+		vector<int> adj;
+		//InitAllToFalse<<<(num_vertices/1024 + 1), 1024>>>(is_neighbour_color, num_vertices+1);
 		for(int i=0;i<num_vertices;i++)
 		{
-			if(t_adj[i]==true)
+			if(t_gpu_adj[i]==true)
 			{
-				adj[j]=i;
-				j++;
+				//cout<<i<<" ADJ "<<v<<"\n";
+				adj.push_back(i);
+				if(color[i]!=-1)
+					is_neighbour_color[color[i]]=true;
+				
 			}
 		}
-		int block = (j+N_THREADS_PER_BLOCK-1)/N_THREADS_PER_BLOCK;
-		int adj_size = j;
-		cudaMemcpy(dcolor, color, sizeof(int) * N, cudaMemcpyHostToDevice);
-		cudaMemcpy(dneigh, is_neighbour_color, sizeof(int) * N, cudaMemcpyHostToDevice);
-		cudaMemcpy(dadj, adj, sizeof(int) * N, cudaMemcpyHostToDevice);
-		check<<<block,N_THREADS_PER_BLOCK>>>(is_neighbour_color,color,adj);
-		cudaMemcpy(color, dcolor, sizeof(int) * N, cudaMemcpyDeviceToHost);
-		cudaMemcpy(adj, dadj, sizeof(int) * N, cudaMemcpyDeviceToHost);
-		/*for (l i = 0; i < adj.size(); ++i) {
-			if (color[adj[i]] != -1)
-				is_neighbour_color[color[adj[i]]] = true;
-		}*/
+		//for(int i=1;i<=num_vertices;i++)
+		//	cout<<is_neighbour_color[i]<<"C\n";
+		
 
 		// Finding first unassigned colour
 		l c;
@@ -69,8 +73,8 @@ void Colouring(){
 			if (is_neighbour_color[c] == false) break;
 		}
 		color[v] = c;
-
-		for (l i = 0; i < j; ++i) {
+		for (l i = 0; i < adj.size(); ++i) {
+			//cout<<i<<" "<<color[adj[i]]<<"\n";
 			if (color[adj[i]] != -1)
 				is_neighbour_color[color[adj[i]]] = false;
 		}
@@ -93,7 +97,6 @@ int main(int argc, char** argv){
 	}
 	
 	clock_t ti;
-	
 	num_vertices = atoi(argv[2]);
 	int num_bits = atoi(argv[3]);
 	int num_hash_funs = atoi(argv[4]);
