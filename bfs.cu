@@ -54,7 +54,6 @@ void BreadthFirstSearch(int s) {
 	adj = (bool *)malloc(num_vertices * sizeof(bool));
 	
 	while(!q.empty()){
-		cout<<"HI";
 		int u = q.front();
 		q.pop();
 		
